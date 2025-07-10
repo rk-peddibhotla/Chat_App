@@ -22,23 +22,20 @@
 
     const messages = document.getElementById("messages")
 
-    const createMessage = (name, msg) => {
+    const createMessage = (name, msg, msgTimeStamp) => {
+        const time = msgTimeStamp || "";
         const content = `
         <div class="text">
-            <span>
-                <strong>${name}</strong>: ${msg}
-                </span>
-            
-            <span class="muted">
-                ${new Date().toLocaleString()}
-                </span>
+            <span><strong>${name}</strong>: ${msg}</span>
+            <span class="muted">${time}</span>
         </div>
-        `
+        `;
         messages.innerHTML += content;
+        messages.scrollTop = messages.scrollHeight;
     };
 
     socketio.on("message", (data) => {
-        createMessage(data.name, data.message);
+        createMessage(data.name, data.message, data.timestamp);
     });
 
     const sendMessage = () => {
@@ -50,7 +47,7 @@
 </script>
 {% for msg in messages%}
     <script type="text/javascript">
-        createMessage("{{msg.name}}", "{{msg.message}}")
+        createMessage("{{msg.name}}", "{{msg.message}}","{{msg.timestamp}}")
     </script>
 
 {% endfor %}
