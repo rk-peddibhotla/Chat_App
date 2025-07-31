@@ -1,4 +1,14 @@
 {% extends 'base.html' %} {% block content %}
+
+<div id="room-stats" style="padding: 10px; border-bottom: 1px solid #ccc;">
+  <strong>Room Stats:</strong>
+  Messages sent: <span id="msg-count">0</span> | 
+  Active users: <span id="user-count">0</span> | 
+  Peak users: <span id="peak-count">0</span>
+</div>
+
+
+
 <div class="message-box">
     <h2>Chat Room: {{code}}</h2> 
     <div class="messages" id="messages"></div>
@@ -17,6 +27,9 @@
     </div>
 
 </div>
+
+
+
 <script type="text/javascript">
     var socketio = io();
 
@@ -44,7 +57,36 @@
         socketio.emit("message",{data: message.value})
         message.value = "";
     };
+
+
+    function updateStats(data) {
+        document.getElementById("msg-count").innerText = data.messages;
+        document.getElementById("user-count").innerText = data.users;
+        document.getElementById("peak-count").innerText = data.peak;
+    }
+
+
+    socketio.on("connect", () => {
+        socketio.emit("request_stats");
+        setInterval(() => {
+            socketio.emit("request_stats");
+        }, 5000);
+    });
+
+    socketio.on("room_stats", (data) => {
+        updateStats(data);
+    });
+
+    socketio.on("message", () => {
+        socketio.emit("request_stats");
+    });
+
+
+
 </script>
+
+
+
 {% for msg in messages%}
     <script type="text/javascript">
         createMessage("{{msg.name}}", "{{msg.message}}","{{msg.timestamp}}")

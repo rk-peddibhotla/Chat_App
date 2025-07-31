@@ -7,6 +7,7 @@ from flask_socketio import join_room, leave_room, send, SocketIO
 import random
 from string import ascii_uppercase
 from datetime import datetime
+from flask_socketio import emit, join_room
 
 app = Flask(__name__)
 app.config["SECRET_KEY"]= "secrentkey"
@@ -40,7 +41,7 @@ def home():
         room = code
         if create != False:
             room = generate_unique_code(4)
-            rooms[room] = {"members": 0, "messages": []}
+            rooms[room] = {"members": 0, "messages": [], "message_count": 0, "peak_users": 0}
         
         elif code not in rooms:
             return render_template("home.html", error="Room does not exist.", code=code, name=name)
@@ -76,6 +77,8 @@ def message(data):
     }
     send(content, to=room)
     rooms[room]["messages"].append(content)
+    rooms[room]["message_count"] += 1
+    print(f"[DEBUG] Message count in room {room}: {rooms[room]['message_count']}")
     print(f"{session.get('name')} said: {data['data']}")
 
 
@@ -93,6 +96,10 @@ def connect(auth):
     join_room(room)
     send({"name": name, "message": "has enetered the room", "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, to=room)
     rooms[room]["members"] += 1
+    if rooms[room]["members"] > rooms[room]["peak_users"]:
+        rooms[room]["peak_users"] = rooms[room]["members"]
+
+    print(f"[DEBUG] Peak users in room {room}: {rooms[room]['peak_users']}")
     print(f"{name} joined room {room}")
 
 
@@ -106,15 +113,55 @@ def disconnect():
         rooms[room]["members"] -= 1
         if rooms[room]["members"] <=0:
             del rooms[room]
-
-    
-
-
-        send({"name": name, "message": "has left the room" ,"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, to=room)
+        
+        else:
+            send({"name": name, "message": "has left the room" ,"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, to=room)
         print(f"{name} has left the room {room}")
 
 
 
+@socketio.on("request_stats")
+def send_room_stats():
+    room = session.get("room")
+    if room in rooms:
+        emit("room_stats", {
+            "messages": rooms[room]["message_count"],
+            "users": rooms[room]["members"],
+            "peak": rooms[room]["peak_users"]
+        })
+
+
+
+
+@socketio.on("join_room_manual")
+def handle_manual_join(data):
+    name = data.get("name")
+    room = data.get("room")
+    if not name or not room:
+        emit("error", {"message": "Name and room required"})
+        return
+    
+    # Store user info in session (optional)
+    session["name"] = name
+    session["room"] = room
+
+    # Create room if doesn't exist (for test only)
+    if room not in rooms:
+        rooms[room] = {
+            "members": 0,
+            "messages": [],
+            "message_count": 0,
+            "peak_users": 0
+        }
+
+    join_room(room)
+    rooms[room]["members"] += 1
+    if rooms[room]["members"] > rooms[room]["peak_users"]:
+        rooms[room]["peak_users"] = rooms[room]["members"]
+
+    emit("joined", {"room": room, "name": name})
+    send({"name": name, "message": "has entered the room", "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}, to=room)
+    print(f"{name} manually joined room {room}")
 
 
 if __name__ == "__main__":
